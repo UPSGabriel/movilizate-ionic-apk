@@ -12,18 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- NUEVO PASO OBLIGATORIO ---
       - name: Configurar Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # ------------------------------
 
-      - name: Configurar Java
+      - name: Configurar Java 21 (EL FIX DEFINITIVO)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Instalar dependencias
         run: cd movilizate-ionic && npm install
