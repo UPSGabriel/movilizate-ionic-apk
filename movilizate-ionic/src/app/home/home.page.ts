@@ -33,6 +33,12 @@ export class HomePage {
       alert('Por favor ingresa el ID de la tarjeta.');
       return;
     }
+
+    // --- CORRECCIÓN AUTOMÁTICA ---
+    // Limpia espacios al inicio/final y convierte a mayúsculas
+    this.cardId = this.cardId.trim().toUpperCase();
+    // ----------------------------
+
     if (!this.validateCardId()) {
       alert('El formato del ID es incorrecto. Debe ser como: CURA0010505920');
       return;
