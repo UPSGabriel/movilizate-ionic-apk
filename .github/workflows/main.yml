@@ -21,8 +21,11 @@ jobs:
       - name: Instalar dependencias
         run: npm install
 
-      - name: Construir Web (El paso que faltaba)
-        run: npm run build
+      - name: Instalar Ionic CLI Global
+        run: npm install -g @ionic/cli
+
+      - name: Construir Web (Modo Inteligente)
+        run: ionic build --prod
 
       - name: Preparar Android
         run: |
