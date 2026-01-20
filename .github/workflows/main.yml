@@ -21,6 +21,9 @@ jobs:
       - name: Instalar dependencias
         run: npm install
 
+      - name: Construir Web (El paso que faltaba)
+        run: npm run build
+
       - name: Preparar Android
         run: |
           npm install @capacitor/android
