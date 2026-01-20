@@ -19,25 +19,31 @@ jobs:
           java-version: '17'
 
       - name: Instalar dependencias
-        run: npm install
+        # Entramos a la carpeta antes de instalar
+        run: cd movilizate-ionic && npm install
 
       - name: Instalar Ionic CLI Global
         run: npm install -g @ionic/cli
 
       - name: Construir Web (Modo Inteligente)
-        run: ionic build --prod
+        # Entramos a la carpeta antes de construir
+        run: cd movilizate-ionic && ionic build --prod
 
       - name: Preparar Android
+        # Entramos a la carpeta para todo el proceso de Capacitor
         run: |
+          cd movilizate-ionic
           npm install @capacitor/android
           npx cap add android || true
           npx cap sync
 
       - name: Construir APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+        # Entramos hasta la carpeta de Android dentro de tu proyecto
+        run: cd movilizate-ionic/android && chmod +x gradlew && ./gradlew assembleDebug
 
       - name: Subir APK a GitHub
         uses: actions/upload-artifact@v4
         with:
           name: APP-MOVILIZATE-ANDROID
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          # ¡OJO AQUÍ! Le decimos la ruta completa incluyendo tu carpeta
+          path: movilizate-ionic/android/app/build/outputs/apk/debug/app-debug.apk
