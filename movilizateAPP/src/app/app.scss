@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #eef2f6; /* Fondo gris azulado moderno */
+  font-family: 'Roboto', sans-serif;
+  margin: 0;
+}
+
+/* Animación suave para aparecer elementos */
+.fade-in {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Estilo para los inputs para que parezcan "huecos" en la tarjeta */
+.input-inset {
+  background-color: #f3f4f6;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}

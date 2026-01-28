@@ -1,7 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonContent, IonHeader, IonTitle, IonToolbar, IonModal, IonButtons, IonButton } from '@ionic/angular/standalone';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import html2canvas from 'html2canvas';
+import { Capacitor } from '@capacitor/core';
+import {
+  IonContent,
+  IonModal,
+  ToastController
+} from '@ionic/angular/standalone';
+
+// (Nota: Quité IonHeader, IonTitle, etc. porque tu diseño personalizado no los usa)
 
 interface Transaction {
   date: Date;
@@ -14,8 +24,7 @@ interface Transaction {
   templateUrl: 'home.page.html',
   styleUrls: ['home.page.scss'],
   standalone: true,
-  // AGREGAMOS LOS MODULOS NECESARIOS PARA EL MODAL
-  imports: [IonContent, IonHeader, IonTitle, IonToolbar, IonModal, IonButtons, IonButton, CommonModule, FormsModule],
+  imports: [IonContent, IonModal, CommonModule, FormsModule]
 })
 export class HomePage implements OnInit {
   cardId: string = '';
@@ -24,13 +33,18 @@ export class HomePage implements OnInit {
   step: number = 1;
   isLoading: boolean = false;
 
-  history: Transaction[] = []; // Historial completo original
-  displayedHistory: Transaction[] = []; // Historial filtrado que se ve en el modal
+  history: Transaction[] = [];
+  displayedHistory: Transaction[] = [];
 
-  // Variables para el Modal y Filtros
   isModalOpen: boolean = false;
   filterDateStart: string = '';
   filterDateEnd: string = '';
+
+  // Variables para el comprobante
+  isReceiptOpen: boolean = false;
+  selectedReceipt: Transaction | null = null;
+
+  constructor(private toastController: ToastController) {}
 
   ngOnInit() {
     const savedCard = localStorage.getItem('movilizate_card');
@@ -39,15 +53,25 @@ export class HomePage implements OnInit {
     const savedHistory = localStorage.getItem('movilizate_history');
     if (savedHistory) {
       this.history = JSON.parse(savedHistory);
-      // Restaurar las fechas de string a objeto Date para que funcionen los filtros
       this.history.forEach(item => item.date = new Date(item.date));
     }
   }
 
-  // --- LÓGICA DEL HISTORIAL AVANZADO ---
+  // --- TOASTS (Notificaciones) ---
+  async presentToast(message: string, color: 'danger' | 'warning' | 'success' = 'danger') {
+    const toast = await this.toastController.create({
+      message: message,
+      duration: 2500,
+      position: 'top',
+      color: color,
+      cssClass: 'custom-toast',
+      buttons: [{ text: 'OK', role: 'cancel' }]
+    });
+    await toast.present();
+  }
 
+  // --- LÓGICA DEL HISTORIAL ---
   openHistoryModal() {
-    // Al abrir, mostramos todo sin filtrar y limpiamos los filtros
     this.displayedHistory = [...this.history];
     this.filterDateStart = '';
     this.filterDateEnd = '';
@@ -60,13 +84,11 @@ export class HomePage implements OnInit {
 
   applyFilters() {
     if (!this.filterDateStart && !this.filterDateEnd) {
-      this.displayedHistory = [...this.history]; // Si no hay fechas, mostrar todo
+      this.displayedHistory = [...this.history];
       return;
     }
-
     const start = this.filterDateStart ? new Date(this.filterDateStart) : new Date('2000-01-01');
     const end = this.filterDateEnd ? new Date(this.filterDateEnd) : new Date();
-    // Ajustar el final del día para incluir movimientos de ese mismo día
     end.setHours(23, 59, 59);
 
     this.displayedHistory = this.history.filter(item => {
@@ -75,17 +97,17 @@ export class HomePage implements OnInit {
     });
   }
 
-  clearFullHistory() {
-    if(confirm('¿Estás seguro de borrar TODO el historial? No se puede deshacer.')) {
+  async clearFullHistory() {
+    if(confirm('¿Estás seguro de borrar TODO el historial?')) {
       this.history = [];
       this.displayedHistory = [];
       localStorage.removeItem('movilizate_history');
       this.closeHistoryModal();
+      await this.presentToast('Historial eliminado correctamente', 'success');
     }
   }
 
-  // --- TU LÓGICA ORIGINAL ---
-
+  // --- LÓGICA DE PAGO ---
   validateCardId(): boolean {
     const regex = /^CURA\d{10}$/;
     return regex.test(this.cardId);
@@ -96,10 +118,20 @@ export class HomePage implements OnInit {
   }
 
   proceedToPayment() {
-    if (!this.cardId) { alert('Ingresa el ID'); return; }
+    if (!this.cardId) {
+      this.presentToast('⚠️ Por favor ingresa el ID de la tarjeta.', 'warning');
+      return;
+    }
     this.cardId = this.cardId.trim().toUpperCase();
-    if (!this.validateCardId()) { alert('ID incorrecto'); return; }
-    if (!this.amount || this.amount <= 0) { alert('Monto inválido'); return; }
+
+    if (!this.validateCardId()) {
+      this.presentToast('❌ Formato incorrecto. Debe ser: CURA0010505920', 'danger');
+      return;
+    }
+    if (!this.amount || this.amount <= 0) {
+      this.presentToast('⚠️ Por favor selecciona un monto válido.', 'warning');
+      return;
+    }
 
     localStorage.setItem('movilizate_card', this.cardId);
 
@@ -124,5 +156,72 @@ export class HomePage implements OnInit {
     this.step = 1;
     this.selectedBank = '';
     this.amount = null;
+  }
+
+  // --- COMPARTIR SOLO TEXTO (Backup) ---
+  shareReceipt(item: Transaction) {
+    const text = `¡Hola! 👋 Recarga exitosa.\n💳: ${item.cardId}\n💰: $${item.amount}\n📅: ${new Date(item.date).toLocaleString()}\n\nApp Movilízate 🚌`;
+    const encodedText = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encodedText}`, '_system');
+  }
+
+  // --- LÓGICA DEL COMPROBANTE DIGITAL ---
+  viewReceipt(item: Transaction) {
+    this.selectedReceipt = item;
+    this.isReceiptOpen = true;
+  }
+
+  closeReceipt() {
+    this.isReceiptOpen = false;
+    this.selectedReceipt = null;
+  }
+
+  // 🔥 FUNCIÓN MÁGICA: Genera FOTO y comparte 🔥
+  async shareReceiptImage() {
+    const element = document.getElementById('ticketVisual') as HTMLElement;
+
+    if (!element) {
+      this.presentToast('Error: No se encuentra el comprobante', 'danger');
+      return;
+    }
+
+    this.presentToast('📸 Generando imagen...', 'warning');
+
+    try {
+      // TRUCO: Usamos 'as any' para que TypeScript no se queje de las opciones
+      const options: any = { backgroundColor: null, scale: 2 };
+
+      const canvas = await html2canvas(element, options);
+      const fullBase64 = canvas.toDataURL('image/png');
+
+      if (Capacitor.isNativePlatform()) {
+        // --- MODO CELULAR ---
+        const base64Data = fullBase64.split(',')[1];
+        const fileName = `comprobante_${new Date().getTime()}.png`;
+
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Cache
+        });
+
+        await Share.share({
+          files: [savedFile.uri],
+        });
+
+      } else {
+        // --- MODO PC ---
+        const link = document.createElement('a');
+        link.download = `Comprobante_Movilizate.png`;
+        link.href = fullBase64;
+        link.click();
+
+        this.presentToast('💾 Imagen descargada (Ábrela y envíala)', 'success');
+      }
+
+    } catch (error) {
+      console.error('Error al compartir imagen:', error);
+      this.presentToast('Error al generar la imagen', 'danger');
+    }
   }
 }
